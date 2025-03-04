@@ -2,18 +2,21 @@
 
 .section .data
 format_str:       .string "|%s|\n"
-format_res:            .string "%d\n"
+format_res:       .string "%d\n"
 error_input_msg:    .string "addasm: input error\n"
+error_input_len:   .word 20
 error_overflow_msg: .string "addasm: buffer overflow\n"
+error_overflow_len: .word 24
 error_char_msg:     .string "addasm: invalid character\n"
-error_space_msg:    .string "addasm: no space found\n"
+error_char_len:     .word 26
+error_space_msg:    .string "addasm: wrong input format\n"
+error_space_len:    .word 27
 
 .section .bss
 buffer: .space 512
 
 .section .text
 main:
-
     addi sp, sp, -48
     sd ra, 0(sp)
     sd s0, 8(sp)
@@ -88,34 +91,37 @@ found_space:
     add a1, s0, s1
     la a0, format_res
     call printf
-    j exit
+    li a0, 0
+    call exit
 
 error_overflow:
-    la a0, error_overflow_msg
-    call printf
-    j exit
+    li a0, 2
+    la a1, error_overflow_msg
+    lw a2, error_overflow_len
+    call write
+    li a0, 1
+    call exit
 
 error_invalid_char:
-    la a0, error_char_msg
-    call printf
-    j exit
+    li a0, 2
+    la a1, error_char_msg
+    lw a2, error_char_len
+    call write
+    li a0, 1
+    call exit
 
 error_no_space:
-    la a0, error_space_msg
-    call printf
-    j exit
+    li a0, 2
+    la a1, error_space_msg
+    lw a2, error_space_len
+    call write
+    li a0, 1
+    call exit
 
 error_input:
-    la a0, error_input_msg
-    call printf
-
-exit:
-    ld s3, 32(sp)
-    ld s2, 24(sp)
-    ld s1, 16(sp)
-    ld s0, 8(sp)
-    ld ra, 0(sp)
-    addi sp, sp, 48
-    li a0, 0
-    ret
-
+    li a0, 2
+    la a1, error_input_msg
+    lw a2, error_input_len
+    call write
+    li a0, 1
+    call exit
