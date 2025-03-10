@@ -10,28 +10,30 @@ int main(int argc, char* argv[]) {
     int pipefd[2];
 
     if (pipe(pipefd) < 0) {
-        fprintf(stderr, "pipe error\n");
+        perror("pipe error\n");
         exit(1);
     }
     
     pid_t pid = fork();
 
     if (pid < 0) {
-        fprintf(stderr, "fork error\n");
+        perror("fork error\n");
         exit(1);
     }
     else if (pid == 0) {
-        close(pipefd[1]);
+        if (close(pipefd[1]) < 0) {
+            perror("close pipe write end error\n");
+            exit(1);
+        }
         char buf[BUF_SIZE];
-        int len;
+        size_t len;
 
         while ((len = read(pipefd[0], &buf, BUF_SIZE)) > 0) {
             char* str = buf;
             while (len > 0) {
-                int ret = write(1, str, len);
+                size_t ret = write(1, str, len);
                 if (ret < 0) {
-                    fprintf(stderr, "write error\n");
-                    close(pipefd[1]);
+                    perror("write error\n");
                     exit(1);
                 }
                 len -= ret;
@@ -39,39 +41,49 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        close(pipefd[0]);
+        if (close(pipefd[0]) < 0) {
+            perror("close pipe read end error\n");
+            exit(1);
+        }
+
         if (len < 0) {
-            fprintf(stderr, "read error\n");
+            perror("read error\n");
             exit(1);
         }
         exit(0);
     }
     else if (pid > 0) {
-        close(pipefd[0]);
+        if (close(pipefd[0]) < 0) {
+            perror("close pipe read end error\n");
+            exit(1);
+        }
 
         for (int i = 1; i < argc; ++i) {
             char* buf = argv[i];
-            int len = strlen(argv[i]);  
+            size_t len = strlen(argv[i]);  
             while (len > 0) {
-                int ret = write(pipefd[1], buf, len);
+                size_t ret = write(pipefd[1], buf, len);
                 if (ret < 0) {
-                  fprintf(stderr, "write error\n");
-                  close(pipefd[1]);
+                  perror("write error\n");
+                  if (close(pipefd[1]) < 0) {
+                      perror("close pipe write end error\n");
+                  }
                   exit(1);
                 }
                 len -= ret;
                 buf += ret;
           }
           if (write(pipefd[1], "\n", 1) < 0) {
-              fprintf(stderr, "write error\n");
-              close(pipefd[1]);
+              perror("write error\n");
+              if (close(pipefd[1]) < 0) {
+                  perror("close pipe write end error\n");
+              }
               exit(1);
             }
         }
-        int ret = close(pipefd[1]);
 
-        if (ret < 0) {
-            fprintf(stderr, "close error\n");
+        if (close(pipefd[1]) < 0) {
+            perror("close pipe write end error\n");
             exit(1);
         }
         else {

@@ -11,7 +11,11 @@ main(int argc, char *argv[]) {
   }
   else if (pid > 0) {
     printf("parent pid = %d, child pid = %d\n", getpid(), pid);
-    kill(pid);
+    int ret = kill(pid);
+    if (ret < 0) {
+      fprintf(2, "kill error\n");
+      exit(1);
+    }
     int status, cpid;
     cpid = wait(&status);
     printf("child pid = %d exit with status %d\n", cpid, status);

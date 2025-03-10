@@ -19,11 +19,25 @@ main(int argc, char *argv[]) {
     exit(1);
   }
   else if (pid == 0) {
-    close(pipefd[1]);
-    close(0);
+    if (close(pipefd[1]) < 0) {
+      fprintf(2, "close pipe write end error\n");
+      exit(1);
+    }
 
-    dup(pipefd[0]);
-    close(pipefd[0]);
+    if (close(0) < 0) {
+      fprintf(2, "close 0 error\n");
+      exit(1);
+    }
+
+    if (dup(pipefd[0]) < 0) {
+      fprintf(2, "dup pipe read end error\n");
+      exit(1);
+    }
+
+    if (close(pipefd[0]) < 0) {
+      fprintf(2, "close pipe read end error\n");
+      exit(1);
+    }
 
     char *argv[] = {"/wc", 0};
     exec("/wc", argv);
@@ -32,7 +46,10 @@ main(int argc, char *argv[]) {
     exit(1);
   }
   else if (pid > 0) {
-    close(pipefd[0]);
+    if (close(pipefd[0]) < 0) {
+      fprintf(2, "close pipe read end error\n");
+      exit(1);
+    }
 
     for (int i = 1; i < argc; ++i) {
       char* buf = argv[i];
@@ -41,7 +58,9 @@ main(int argc, char *argv[]) {
         int ret = write(pipefd[1], buf, len);
         if (ret < 0) {
           fprintf(2, "write error\n");
-          close(pipefd[1]);
+          if (close(pipefd[1]) < 0) {
+            fprintf(2, "close pipe read end error\n");
+          }
           exit(1);
         }
         len -= ret;
@@ -49,14 +68,15 @@ main(int argc, char *argv[]) {
       }
       if (write(pipefd[1], "\n", 1) < 0) {
         fprintf(2, "write error\n");
-        close(pipefd[1]);
+        if (close(pipefd[1]) < 0) {
+          fprintf(2, "close pipe read end error\n");
+        }
         exit(1);
       }
     }
-    int ret = close(pipefd[1]);
 
-    if (ret < 0) {
-      fprintf(2, "close error\n");
+    if (close(pipefd[1]) < 0) {
+      fprintf(2, "close pipe read end error\n");
       exit(1);
     }
     else {
