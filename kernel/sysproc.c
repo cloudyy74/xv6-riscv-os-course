@@ -3,8 +3,9 @@
 #include "defs.h"
 #include "param.h"
 #include "memlayout.h"
-#include "spinlock.h"
+#include "spinlock.h" 
 #include "proc.h"
+#include "procinfo.h"
 
 uint64
 sys_exit(void)
@@ -90,4 +91,62 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+extern struct proc proc[NPROC];
+extern struct spinlock wait_lock;
+
+uint64
+sys_ps_listinfo(void)
+{
+  uint64 plist;
+  int lim;
+
+  argaddr(0, &plist);
+  argint(1, &lim);
+
+  int cnt = 0;
+  if (plist == 0) {
+    struct proc *p;
+    for (p = proc; p < &proc[NPROC]; ++p) {
+      acquire(&p->lock);
+      if (p->state != UNUSED) {
+        ++cnt;
+      }
+      release(&p->lock);
+    }
+  }
+  else {
+    struct procinfo info;
+    struct proc *p;
+
+    for (p = proc; p < &proc[NPROC]; ++p) {
+      acquire(&p->lock);
+      if (p->state == UNUSED) {
+        release(&p->lock);
+        continue;
+      }
+
+      if (++cnt > lim) {
+        release(&p->lock);
+        return -1;
+      }
+
+      info.pid = p->pid;
+      safestrcpy(info.name, p->name, sizeof(info.name));
+      info.state = (int)p->state;
+
+      acquire(&wait_lock);
+      info.ppid = (p->parent) ? p->parent->pid : -1;
+      release(&p->lock);
+      release(&wait_lock);
+
+      if (copyout(myproc()->pagetable, plist, (char *)&info, sizeof(info)) < 0) {
+        return -2;
+      }
+
+      plist += sizeof(info);
+    }
+  }
+  return cnt;
 }
