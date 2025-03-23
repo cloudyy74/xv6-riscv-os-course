@@ -137,9 +137,11 @@ sys_ps_listinfo(void)
       info.state = (int)p->state;
 
       acquire(&wait_lock);
+      acquire(&p->parent->lock);
       info.ppid = (p->parent) ? p->parent->pid : -1;
-      release(&p->lock);
+      release(&p->parent->lock);
       release(&wait_lock);
+      release(&p->lock);
 
       if (copyout(myproc()->pagetable, plist, (char *)&info, sizeof(info)) < 0) {
         return -2;
