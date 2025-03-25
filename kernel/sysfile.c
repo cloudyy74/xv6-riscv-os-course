@@ -9,10 +9,9 @@
 #include "defs.h"
 #include "param.h"
 #include "stat.h"
-#include "spinlock.h"
+#include "mutex.h"
 #include "proc.h"
 #include "fs.h"
-#include "sleeplock.h"
 #include "file.h"
 #include "fcntl.h"
 
@@ -501,5 +500,57 @@ sys_pipe(void)
     fileclose(wf);
     return -1;
   }
+  return 0;
+}
+
+uint64 sys_mutex(void) {
+  struct file *f;
+  int fd;
+
+  if(mutexalloc(&f) < 0)
+    return -1;
+
+  fd = -1;
+  if((fd = fdalloc(f)) < 0){
+    fileclose(f);
+    return -1;
+  }
+
+  return fd;
+}
+
+uint64 sys_mutex_lock(void) {
+  int fd;   
+  struct file *f;
+
+  if (argfd(0, &fd, &f) < 0 || f->type != FD_MUTEX)
+    return -1;
+
+  struct proc *p = myproc();
+  acquiresleep(&f->mutex->mutexlock);
+  acquire(&p->lock);
+  f->mutex->pid = p->pid;
+  release(&p->lock);
+  return 0;
+}
+
+uint64 sys_mutex_unlock(void) {
+  int fd;
+  struct file *f;
+
+  if (argfd(0, &fd, &f) < 0 || f->type != FD_MUTEX)
+    return -1;
+
+  struct proc *p = myproc();
+
+  acquire(&p->lock);
+  if (f->mutex->pid != p->pid) {
+    release(&p->lock);
+    return -1;
+  }
+  release(&p->lock);
+
+  releasesleep(&f->mutex->mutexlock);
+  f->mutex->pid = 0;
   return 0;
 }

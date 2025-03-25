@@ -7,8 +7,7 @@
 #include "defs.h"
 #include "param.h"
 #include "fs.h"
-#include "spinlock.h"
-#include "sleeplock.h"
+#include "mutex.h"
 #include "file.h"
 #include "stat.h"
 #include "proc.h"
@@ -65,6 +64,15 @@ fileclose(struct file *f)
   if(f->ref < 1)
     panic("fileclose");
   if(--f->ref > 0){
+    if (f->type == FD_MUTEX) {
+      struct proc* p = myproc();
+      acquire(&p->lock);
+      if (p->pid == f->mutex->pid) {
+        releasesleep(&f->mutex->mutexlock);
+        f->mutex->pid = 0;
+      }
+      release(&p->lock);
+    }
     release(&ftable.lock);
     return;
   }
@@ -79,6 +87,9 @@ fileclose(struct file *f)
     begin_op();
     iput(ff.ip);
     end_op();
+  }
+  else if(ff.type == FD_MUTEX){
+    mutexclose(ff.mutex);
   }
 }
 
@@ -111,6 +122,9 @@ fileread(struct file *f, uint64 addr, int n)
   if(f->readable == 0)
     return -1;
 
+  if (f->type == FD_MUTEX)
+    return -1;
+
   if(f->type == FD_PIPE){
     r = piperead(f->pipe, addr, n);
   } else if(f->type == FD_DEVICE){
@@ -137,6 +151,9 @@ filewrite(struct file *f, uint64 addr, int n)
   int r, ret = 0;
 
   if(f->writable == 0)
+    return -1;
+
+  if(f->type == FD_MUTEX)
     return -1;
 
   if(f->type == FD_PIPE){
