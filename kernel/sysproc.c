@@ -110,7 +110,7 @@ sys_ps_listinfo(void)
     struct proc *p;
     for (p = proc; p < &proc[NPROC]; ++p) {
       acquire(&p->lock);
-      if (p->state != UNUSED) {
+      if (p->state != UNUSED && p->state != USED) {
         ++cnt;
       }
       release(&p->lock);
@@ -122,7 +122,7 @@ sys_ps_listinfo(void)
 
     for (p = proc; p < &proc[NPROC]; ++p) {
       acquire(&p->lock);
-      if (p->state == UNUSED) {
+      if (p->state == UNUSED || p->state == USED) {
         release(&p->lock);
         continue;
       }
@@ -137,9 +137,15 @@ sys_ps_listinfo(void)
       info.state = (int)p->state;
 
       acquire(&wait_lock);
-      acquire(&p->parent->lock);
-      info.ppid = (p->parent) ? p->parent->pid : -1;
-      release(&p->parent->lock);
+      struct proc *parent = p->parent;
+      if (parent) {
+          acquire(&parent->lock);
+          info.ppid = parent->pid;
+          release(&parent->lock);
+      }
+      else {
+          info.ppid = -1;
+      }
       release(&wait_lock);
       release(&p->lock);
 
