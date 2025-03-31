@@ -529,7 +529,9 @@ uint64 sys_mutex_lock(void) {
   struct proc *p = myproc();
   acquiresleep(&f->mutex->mutexlock);
   acquire(&p->lock);
+  acquire(&f->mutex->lock);
   f->mutex->pid = p->pid;
+  release(&f->mutex->lock);
   release(&p->lock);
   return 0;
 }
@@ -544,13 +546,16 @@ uint64 sys_mutex_unlock(void) {
   struct proc *p = myproc();
 
   acquire(&p->lock);
+  acquire(&f->mutex->lock);
   if (f->mutex->pid != p->pid) {
     release(&p->lock);
+    release(&f->mutex->lock);
     return -1;
   }
   release(&p->lock);
 
   releasesleep(&f->mutex->mutexlock);
   f->mutex->pid = 0;
+  release(&f->mutex->lock);
   return 0;
 }

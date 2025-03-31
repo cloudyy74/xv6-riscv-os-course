@@ -67,10 +67,12 @@ fileclose(struct file *f)
     if (f->type == FD_MUTEX) {
       struct proc* p = myproc();
       acquire(&p->lock);
+      acquire(&f->mutex->lock);
       if (p->pid == f->mutex->pid) {
         releasesleep(&f->mutex->mutexlock);
         f->mutex->pid = 0;
       }
+      release(&f->mutex->lock);
       release(&p->lock);
     }
     release(&ftable.lock);

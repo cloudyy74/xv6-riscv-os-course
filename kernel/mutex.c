@@ -20,6 +20,7 @@ mutexalloc(struct file **f) {
     goto bad;
   mu->pid = 0;
   initsleeplock(&mu->mutexlock, "mutex");
+  initlock(&mu->lock, "mutex");
   (*f)->type = FD_MUTEX;
   (*f)->readable = 0;
   (*f)->writable = 0;

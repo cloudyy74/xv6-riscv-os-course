@@ -4,5 +4,6 @@
 
 struct mutex {
   struct sleeplock mutexlock;
+  struct spinlock lock;
   int pid;
 };
