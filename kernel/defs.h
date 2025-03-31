@@ -173,6 +173,9 @@ uint64          walkaddr(pagetable_t, uint64);
 int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
+void            print_flags(pte_t);
+int             is_user_range(pagetable_t pagetable, uint64 va, uint64 len);
+void            print_pte(pagetable_t, uint);
 
 // plic.c
 void            plicinit(void);

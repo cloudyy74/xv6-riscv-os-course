@@ -449,3 +449,51 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+
+int is_user_range(pagetable_t pagetable, uint64 va, uint64 len) {
+    uint64 a, last;
+    pte_t *pte;
+
+    if(len == 0)
+        return 1;
+
+    a = PGROUNDDOWN(va);
+    last = PGROUNDDOWN(va + len - 1);
+    for(;;) {
+        pte = walk(pagetable, a, 0);
+        if(pte == 0)
+            return 0;
+        if((*pte & PTE_V) == 0)
+            return 0;
+        if(a == last)
+            break;
+        a += PGSIZE;
+    }
+    return 1;
+}
+
+void print_pte(pagetable_t pagetable, uint level) {
+    static char* level_prefix[] = {"", "......... ", "..................."};
+    
+    for(int i = 0; i < 512; i++) {
+        pte_t pte = pagetable[i];
+        if(pte & PTE_V) {
+            uint64 child = PTE2PA(pte);
+            char* flags = "_______\0";
+            
+            if(pte & PTE_R) flags[0] = 'R';
+            if(pte & PTE_W) flags[1] = 'W';
+            if(pte & PTE_X) flags[2] = 'X';
+            if(pte & PTE_U) flags[3] = 'U';
+            if(pte & PTE_G) flags[4] = 'G';
+            if(pte & PTE_A) flags[5] = 'A';
+            if(pte & PTE_D) flags[6] = 'D';
+            
+            printf("%s%03x -> %p %s\n", level_prefix[level], i, (void*)child, flags);
+            
+            if((pte & (PTE_R|PTE_W|PTE_X)) == 0) {
+                print_pte((pagetable_t)child, level + 1);
+            }
+        }
+    }
+}
