@@ -93,25 +93,22 @@ sys_uptime(void)
 }
 
 uint64 sys_pages(void) {
-    uint64 buf;
-    int len, flags;
-    
-    argaddr(0, &buf);
-    argint(1, &len);
-    argint(2, &flags);
-    
-    struct proc *p = myproc();
-    
-    if(flags != 0 && ((flags & ~(PTE_A | PTE_D)) != 0))
-        return -1;
-    
-    if(buf != 0 || len != 0) {
-        if(!is_user_range(p->pagetable, buf, len))
-            return -1;
-    }
-    
+  uint64 buf;
+  int len, flags;
+  
+  argaddr(0, &buf);
+  argint(1, &len);
+  argint(2, &flags);
+
+  if(flags != 0 && (flags & ~(PTE_A | PTE_D)))
+      return -1;
+
+  struct proc *p = myproc();
+
+  if (buf == 0 || len == 0) {
     printf("PAGETABLE %p\n", p->pagetable);
-    print_pte(p->pagetable, 0);
-    
+    vmprint(p->pagetable, 0, flags, 0, 0);
     return 0;
+  }
+  return 0;
 }

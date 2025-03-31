@@ -450,49 +450,37 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   }
 }
 
-int is_user_range(pagetable_t pagetable, uint64 va, uint64 len) {
-    uint64 a, last;
-    pte_t *pte;
-
-    if(len == 0)
-        return 1;
-
-    a = PGROUNDDOWN(va);
-    last = PGROUNDDOWN(va + len - 1);
-    for(;;) {
-        pte = walk(pagetable, a, 0);
-        if(pte == 0)
-            return 0;
-        if((*pte & PTE_V) == 0)
-            return 0;
-        if(a == last)
-            break;
-        a += PGSIZE;
-    }
-    return 1;
-}
-
-void print_pte(pagetable_t pagetable, uint level) {
+void vmprint(pagetable_t pagetable, uint level, int flags, uint64 va, int len) {
     static char* level_prefix[] = {"", "......... ", "..................."};
     
     for(int i = 0; i < 512; i++) {
         pte_t pte = pagetable[i];
         if(pte & PTE_V) {
             uint64 child = PTE2PA(pte);
-            char* flags = "_______\0";
+            char* flags_out = "_______\0";
             
-            if(pte & PTE_R) flags[0] = 'R';
-            if(pte & PTE_W) flags[1] = 'W';
-            if(pte & PTE_X) flags[2] = 'X';
-            if(pte & PTE_U) flags[3] = 'U';
-            if(pte & PTE_G) flags[4] = 'G';
-            if(pte & PTE_A) flags[5] = 'A';
-            if(pte & PTE_D) flags[6] = 'D';
+            if(pte & PTE_R) flags_out[0] = 'R';
+            if(pte & PTE_W) flags_out[1] = 'W';
+            if(pte & PTE_X) flags_out[2] = 'X';
+            if(pte & PTE_U) flags_out[3] = 'U';
+            if(pte & PTE_G) flags_out[4] = 'G';
+            if(pte & PTE_A) flags_out[5] = 'A';
+            if(pte & PTE_D) flags_out[6] = 'D';
             
-            printf("%s%03x -> %p %s\n", level_prefix[level], i, (void*)child, flags);
+            printf("%s", level_prefix[level]);
+            if (i < 0x010) {
+              printf("0x00");
+            }
+            else if (i < 0x100) {
+              printf("0x0");
+            }
+            else {
+              printf("0x");
+            }
+            printf("%x -> %p %s\n", i, (void*)child, flags_out);
             
             if((pte & (PTE_R|PTE_W|PTE_X)) == 0) {
-                print_pte((pagetable_t)child, level + 1);
+                vmprint((pagetable_t)child, level + 1, flags, va, len);
             }
         }
     }
