@@ -450,38 +450,133 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   }
 }
 
-void vmprint(pagetable_t pagetable, uint level, int flags, uint64 va, int len) {
+void vmprint(pagetable_t pagetable, uint64 start_page, uint64 end_page, int flags) {
     static char* level_prefix[] = {"", "......... ", "..................."};
-    
-    for(int i = 0; i < 512; i++) {
-        pte_t pte = pagetable[i];
-        if(pte & PTE_V) {
-            uint64 child = PTE2PA(pte);
-            char* flags_out = "_______\0";
+
+    for(int l2_idx = 0; l2_idx < 512; l2_idx++) {
+        pte_t l2_pte = pagetable[l2_idx];
+        if(!(l2_pte & PTE_V)) continue;
+
+        pagetable_t l1_table = (pagetable_t)PTE2PA(l2_pte);
+        uint64 l2_va = (uint64)l2_idx << PXSHIFT(2);
+
+        for(int l1_idx = 0; l1_idx < 512; l1_idx++) {
+            pte_t l1_pte = l1_table[l1_idx];
+            if(!(l1_pte & PTE_V)) continue;
+
+            pagetable_t l0_table = (pagetable_t)PTE2PA(l1_pte);
+            uint64 l1_va = l2_va | ((uint64)l1_idx << PXSHIFT(1));
             
-            if(pte & PTE_R) flags_out[0] = 'R';
-            if(pte & PTE_W) flags_out[1] = 'W';
-            if(pte & PTE_X) flags_out[2] = 'X';
-            if(pte & PTE_U) flags_out[3] = 'U';
-            if(pte & PTE_G) flags_out[4] = 'G';
-            if(pte & PTE_A) flags_out[5] = 'A';
-            if(pte & PTE_D) flags_out[6] = 'D';
+            int flag = 0;
+            for(int l0_idx = 0; l0_idx < 512; l0_idx++) {
+                pte_t l0_pte = l0_table[l0_idx];
+                if(!(l0_pte & PTE_V)) continue;
+
+                uint64 phys_page = PTE2PA(l0_pte);
+                uint64 va = l1_va | ((uint64)l0_idx << PXSHIFT(0));
+
+                if((start_page != 0 || end_page != 0) && 
+                   (va < start_page || va >= end_page)) 
+                    continue;
+
+                if(flags && (l0_pte & flags) != flags)
+                    continue;
+
+                if (flag == 0) {
+                  flag = 1;
+                  printf("%s", level_prefix[0]);
+                  if (l2_idx < 0x010) {
+                    printf("0x00");
+                  }
+                  else if (l2_idx < 0x100) {
+                    printf("0x0");
+                  }
+                  else {
+                    printf("0x");
+                  }
+                  char flags_str_l2[8] = "_______";
+                  if(l2_pte & PTE_R) flags_str_l2[0] = 'R';
+                  if(l2_pte & PTE_W) flags_str_l2[1] = 'W';
+                  if(l2_pte & PTE_X) flags_str_l2[2] = 'X';
+                  if(l2_pte & PTE_U) flags_str_l2[3] = 'U';
+                  if(l2_pte & PTE_G) flags_str_l2[4] = 'G';
+                  if(l2_pte & PTE_A) flags_str_l2[5] = 'A';
+                  if(l2_pte & PTE_D) flags_str_l2[6] = 'D';
+
+                  printf("%x -> %p %s\n", l2_idx, l1_table, flags_str_l2);
+                  printf("%s", level_prefix[1]);
+                  if (l1_idx < 0x010) {
+                    printf("0x00");
+                  }
+                  else if (l1_idx < 0x100) {
+                    printf("0x0");
+                  }
+                  else {
+                    printf("0x");
+                  }
+                  char flags_str_l1[8] = "_______";
+                  if(l1_pte & PTE_R) flags_str_l1[0] = 'R';
+                  if(l1_pte & PTE_W) flags_str_l1[1] = 'W';
+                  if(l1_pte & PTE_X) flags_str_l1[2] = 'X';
+                  if(l1_pte & PTE_U) flags_str_l1[3] = 'U';
+                  if(l1_pte & PTE_G) flags_str_l1[4] = 'G';
+                  if(l1_pte & PTE_A) flags_str_l1[5] = 'A';
+                  if(l1_pte & PTE_D) flags_str_l1[6] = 'D';
+
+                  printf("%x -> %p %s\n", l1_idx, l0_table, flags_str_l1);
+                }
+                char flags_str[8] = "_______";
+                if(l0_pte & PTE_R) flags_str[0] = 'R';
+                if(l0_pte & PTE_W) flags_str[1] = 'W';
+                if(l0_pte & PTE_X) flags_str[2] = 'X';
+                if(l0_pte & PTE_U) flags_str[3] = 'U';
+                if(l0_pte & PTE_G) flags_str[4] = 'G';
+                if(l0_pte & PTE_A) flags_str[5] = 'A';
+                if(l0_pte & PTE_D) flags_str[6] = 'D';
+
+                printf("%s", level_prefix[2]);
+                if (l0_idx < 0x010) {
+                  printf("0x00");
+                }
+                else if (l0_idx < 0x100) {
+                  printf("0x0");
+                }
+                else {
+                  printf("0x");
+                }
+                printf("%x -> %p %s\n", l0_idx, (void*)phys_page, flags_str);
+              }
+        }
+    }
+}
+
+void vmrmflags(pagetable_t pagetable, uint64 start_page, uint64 end_page, int mask) {
+    for(int l2_idx = 0; l2_idx < 512; l2_idx++) {
+        pte_t l2_pte = pagetable[l2_idx];
+        if(!(l2_pte & PTE_V)) continue;
+
+        pagetable_t l1_table = (pagetable_t)PTE2PA(l2_pte);
+        uint64 l2_va = (uint64)l2_idx << PXSHIFT(2);
+
+        for(int l1_idx = 0; l1_idx < 512; l1_idx++) {
+            pte_t l1_pte = l1_table[l1_idx];
+            if(!(l1_pte & PTE_V)) continue;
+
+            pagetable_t l0_table = (pagetable_t)PTE2PA(l1_pte);
+            uint64 l1_va = l2_va | ((uint64)l1_idx << PXSHIFT(1));
             
-            printf("%s", level_prefix[level]);
-            if (i < 0x010) {
-              printf("0x00");
-            }
-            else if (i < 0x100) {
-              printf("0x0");
-            }
-            else {
-              printf("0x");
-            }
-            printf("%x -> %p %s\n", i, (void*)child, flags_out);
-            
-            if((pte & (PTE_R|PTE_W|PTE_X)) == 0) {
-                vmprint((pagetable_t)child, level + 1, flags, va, len);
-            }
+            for(int l0_idx = 0; l0_idx < 512; l0_idx++) {
+                pte_t* l0_pte = &l0_table[l0_idx];
+                if(!(*l0_pte & PTE_V)) continue;
+
+                uint64 va = l1_va | ((uint64)l0_idx << PXSHIFT(0));
+
+                if((start_page != 0 || end_page != 0) && 
+                   (va < start_page || va >= end_page)) 
+                    continue;
+
+                *l0_pte &= ~mask;
+              }
         }
     }
 }

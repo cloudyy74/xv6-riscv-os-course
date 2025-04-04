@@ -92,6 +92,8 @@ sys_uptime(void)
   return xticks;
 }
 
+
+
 uint64 sys_pages(void) {
   uint64 buf;
   int len, flags;
@@ -100,15 +102,54 @@ uint64 sys_pages(void) {
   argint(1, &len);
   argint(2, &flags);
 
-  if(flags != 0 && (flags & ~(PTE_A | PTE_D)))
+  if(flags < 0 || flags > 3)
       return -1;
 
   struct proc *p = myproc();
 
-  if (buf == 0 || len == 0) {
-    printf("PAGETABLE %p\n", p->pagetable);
-    vmprint(p->pagetable, 0, flags, 0, 0);
-    return 0;
+  uint64 start_page = 0;
+  uint64 end_page = 0;
+
+  if (buf != 0 || len != 0) {
+    start_page = PGROUNDDOWN(buf);
+    end_page = PGROUNDUP(buf + len);
   }
+
+  printf("PAGETABLE %p\n", p->pagetable);
+
+  int mask = 0;
+  if (flags & 1) mask |= PTE_D;
+  if (flags & 2) mask |= PTE_A;
+
+  vmprint(p->pagetable, start_page, end_page, mask);
+  return 0;
+}
+
+uint64 sys_rmflags(void) {
+  uint64 buf;
+  int len, mask_user;
+  
+  argaddr(0, &buf);
+  argint(1, &len);
+  argint(2, &mask_user);
+
+  if(mask_user < 0 || mask_user > 3)
+      return -1;
+
+  struct proc *p = myproc();
+
+  uint64 start_page = 0;
+  uint64 end_page = 0;
+
+  if (buf != 0 || len != 0) {
+    start_page = PGROUNDDOWN(buf);
+    end_page = PGROUNDUP(buf + len);
+  }
+
+
+  int mask = 0;
+  if (mask_user & 1) mask |= PTE_D;
+  if (mask_user & 2) mask |= PTE_A;
+  vmrmflags(p->pagetable, start_page, end_page, mask);
   return 0;
 }
