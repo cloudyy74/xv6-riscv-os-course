@@ -133,7 +133,7 @@ uint64 sys_rmflags(void) {
   argint(1, &len);
   argint(2, &mask_user);
 
-  if(mask_user < 0 || mask_user > 3)
+  if(mask_user < FLAG_ALL || mask_user > (FLAG_A | FLAG_D))
       return -1;
 
   struct proc *p = myproc();
@@ -147,9 +147,9 @@ uint64 sys_rmflags(void) {
   }
 
 
-  int mask = 0;
-  if (mask_user & 1) mask |= PTE_D;
-  if (mask_user & 2) mask |= PTE_A;
+  int mask = FLAG_ALL;
+  if (mask_user & FLAG_D) mask |= PTE_D;
+  if (mask_user & FLAG_A) mask |= PTE_A;
   vmrmflags(p->pagetable, start_page, end_page, mask);
   return 0;
 }
