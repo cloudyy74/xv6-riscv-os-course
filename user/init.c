@@ -1,5 +1,6 @@
 // init: The initial user-level program
 
+#include "kernel/param.h"
 #include "kernel/types.h"
 #include "kernel/stat.h"
 #include "kernel/spinlock.h"
@@ -22,6 +23,12 @@ main(void)
   }
   dup(0);  // stdout
   dup(0);  // stderr
+
+  mkdir("/dev");
+  mknod("/dev/null",     PSEUDO, DEVNULL);
+  mknod("/dev/zero",     PSEUDO, DEVZERO);
+  mknod("/dev/urandom",  PSEUDO, DEVURANDOM);
+  mknod("/dev/nullstat", PSEUDO, DEVNULLSTAT);
 
   for(;;){
     printf("init: starting sh\n");
