@@ -12,13 +12,19 @@
 struct spinlock nullstat_lock;
 uint64 nullstat_count = 0;
 
-uint64 urandom_state = 1ULL;
+struct spinlock urandom_lock;
+uint64 urandom_state = 1;
 
+static char zeroes[PGSIZE] = {0};
+    
 uint8
 urandom_next_byte(void)
 {
+  acquire(&urandom_lock);
   urandom_state = urandom_state * 6364136223846793005ULL + 1ULL;
-  return (uint8)(urandom_state >> 56);
+  uint8 result = (uint8)(urandom_state >> 56);
+  release(&urandom_lock);
+  return result;
 }
 
 int
@@ -33,12 +39,18 @@ pseudodev_read(short minor, int user_dst, uint64 dst, int n)
     return 0;
 
   case DEVZERO:
-    for (i = 0; i < n; i++) {
-      b = 0;
-      if (either_copyout(user_dst, dst + i, &b, 1) < 0)
-        break;
+    int len = n;
+    int offset = 0;
+    while (len > 0)
+    {
+      int chunk = len > PGSIZE ? PGSIZE : len;
+      if (either_copyout(user_dst, dst + offset, zeroes, chunk) < 0)
+        return n - len;
+      len -= chunk;
+      offset += chunk;
     }
-    return i;
+    return n;
+
 
   case DEVURANDOM:
     for (i = 0; i < n; i++) {
@@ -80,7 +92,9 @@ pseudodev_write(short minor, int user_src, uint64 src, int n)
       return -1;
     if (either_copyin(&new_seed, user_src, src, sizeof(uint64)) < 0)
       return -1;
+    acquire(&urandom_lock);
     urandom_state = new_seed;
+    release(&urandom_lock);
     return sizeof(uint64);
 
   case DEVNULLSTAT:
@@ -98,6 +112,7 @@ void
 pseudodev_init(void) 
 {
   initlock(&nullstat_lock, "nullstat");
+  initlock(&urandom_lock, "urandom");
   devsw[PSEUDO].read  = pseudodev_read;
   devsw[PSEUDO].write = pseudodev_write;
 }
