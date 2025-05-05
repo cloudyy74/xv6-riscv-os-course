@@ -189,6 +189,7 @@ void            virtio_disk_intr(void);
 uint32          rtc_read_low(void);
 uint32          rtc_read_high(void);
 uint64          rtc_get_time(void);
+void            rtcinit(void);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
